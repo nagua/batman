@@ -46,6 +46,7 @@ const FCW_ZM: u16 = 1 << 2;
 const FCW_IM: u16 = 1 << 0;
 /// Unmask (enable) x87 exceptions
 const FCW_UNMASK: u16 = !(FCW_ZM | FCW_IM);
+const FCW_MASK: u16 = FCW_ZM | FCW_IM;
 
 /// Zero-Divide Exception Mask (SSE)
 const MXCSR_ZM: u32 = 1 << 9;
@@ -57,6 +58,7 @@ const MXCSR_ZE: u32 = 1 << 2;
 const MXCSR_IE: u32 = 1 << 0;
 /// Clear and unmask (enable) SSE FP exceptions
 const MXCSR_UNMASK: u32 = !(MXCSR_ZM | MXCSR_IM | MXCSR_ZE | MXCSR_IE);
+const MXCSR_MASK: u32 = MXCSR_ZM | MXCSR_IM | MXCSR_ZE | MXCSR_IE;
 
 global_asm!(
     ".global enable_fp_exceptions",
@@ -79,7 +81,29 @@ global_asm!(
     fcw = const FCW_UNMASK,
 );
 
+global_asm!(
+    ".global disable_fp_exceptions",
+    "disable_fp_exceptions:",
+
+    // Clear and enable SSE FP exceptions
+    "stmxcsr    dword ptr [rsp-4]",
+    "or         dword ptr [rsp-4], {mxcsr}",
+    "ldmxcsr    dword ptr [rsp-4]",
+
+    // Clear and enable x87 exceptions
+    "fclex",
+    "fstcw      word ptr [rsp-8]",
+    "or         word ptr [rsp-8], {fcw}",
+    "fldcw      word ptr [rsp-8]",
+
+    "ret",
+
+    mxcsr = const MXCSR_MASK,
+    fcw = const FCW_MASK,
+);
+
 extern "C" {
     /// Enable floating point exceptions on the current thread.
     pub fn enable_fp_exceptions();
+    pub fn disable_fp_exceptions();
 }

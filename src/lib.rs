@@ -4,28 +4,23 @@
 #![feature(backtrace)]
 #![deny(clippy::all)]
 
-#[cfg(debug_assertions)]
 use log::info;
-#[cfg(debug_assertions)]
 use std::{
     sync::atomic::{AtomicBool, Ordering},
     thread,
 };
 
-#[cfg(debug_assertions)]
 mod backtrace;
-#[cfg(all(debug_assertions, unix))]
+#[cfg(unix)]
 mod unix;
-#[cfg(all(debug_assertions, windows))]
+#[cfg(windows)]
 mod windows;
-#[cfg(all(debug_assertions, any(target_arch = "x86", target_arch = "x86_64")))]
-mod x86_64;
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+pub mod x86_64;
 
-#[cfg(debug_assertions)]
 thread_local! {
     static INITIALIZED: AtomicBool = AtomicBool::new(false);
 }
-#[cfg(debug_assertions)]
 static HANDLING: AtomicBool = AtomicBool::new(false);
 
 /// Enable floating point unit exceptions.
@@ -49,7 +44,6 @@ static HANDLING: AtomicBool = AtomicBool::new(false);
 ///
 /// This function mutates global state (namely signal handlers).
 pub unsafe fn signal() {
-    #[cfg(debug_assertions)]
     INITIALIZED.with(|init| {
         let exch = init.compare_exchange(false, true, Ordering::SeqCst, Ordering::Acquire);
         if exch.is_ok() {
@@ -65,12 +59,9 @@ pub unsafe fn signal() {
                 windows::install_exception_handler();
             }
 
-            #[cfg(all(debug_assertions, any(target_arch = "x86", target_arch = "x86_64")))]
+            #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
             x86_64::enable_fp_exceptions();
-            #[cfg(all(
-                debug_assertions,
-                not(any(target_arch = "x86", target_arch = "x86_64"))
-            ))]
+            #[cfg(not(any(target_arch = "x86", target_arch = "x86_64")))]
             compile_error!("Unsupported platform");
 
             info!("FPU exceptions enabled on thread {id:?}");
